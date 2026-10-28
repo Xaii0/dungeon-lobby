@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Dungeon Lobby: a free multiplayer fantasy battle game with an AI Dungeon Master. Play in your browser with friends.">
+<meta name="theme-color" content="#14110f">
+<title>Dungeon Lobby</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23d9a441' d='M32 4 58 19v26L32 60 6 45V19z'/%3E%3Ctext x='32' y='41' font-size='22' text-anchor='middle' fill='%2314110f' font-family='Georgia' font-weight='bold'%3E20%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --bg:#14110f; --panel:#1e1915; --panel2:#181310; --line:#3a3026; --ink:#ece2cf; --mute:#a3947d; --gold:#d9a441; --gold-ink:#1a1408; --red:#cf5a45; --green:#73b073; }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 Georgia, "Times New Roman", serif; }
+  h1,h2,h3 { font-weight:normal; margin:0; }
+  h2 { font-size:20px; }
+  .wrap { max-width:980px; margin:0 auto; padding:16px 16px 40px; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:4px 0 16px; flex-wrap:wrap; }
+  .logo { font-size:28px; color:var(--gold); letter-spacing:.5px; }
+  .net { font-size:13px; color:var(--mute); display:flex; align-items:center; gap:6px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--mute); display:inline-block; }
+  .dot.on { background:var(--green); } .dot.off { background:var(--red); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px; }
+  input, button { font:inherit; color:inherit; }
+  input[type=text], input[type=password], input:not([type]) { background:#110e0c; border:1px solid var(--line); border-radius:8px; padding:11px 12px; width:100%; min-height:44px; }
+  input:focus { outline:2px solid var(--gold); outline-offset:1px; }
+  button { background:#2a2219; border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-height:44px; cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--gold); }
+  button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--gold); color:var(--gold-ink); border-color:var(--gold); font-weight:bold; }
+  label { display:block; color:var(--mute); font-size:14px; margin-bottom:4px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .two { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+  .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); }
+  .classes { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .classes button { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:2px; padding:10px; }
+  .classes button span { font-size:13px; color:var(--mute); }
+  .classes button.sel { border-color:var(--gold); background:#3a2d14; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; }
+  .seg button.sel { background:#3a2d14; color:var(--gold); }
+  .mute { color:var(--mute); font-size:14px; }
+  .err { color:var(--red); min-height:1.4em; margin-top:8px; }
+  .tag { font-size:12px; padding:1px 7px; border:1px solid var(--line); border-radius:99px; color:var(--mute); white-space:nowrap; }
+  .tag.ok { color:var(--green); border-color:var(--green); }
+  .tag.gold { color:var(--gold); border-color:var(--gold); }
+  .hidden { display:none !important; }
+  .room-card, .card { border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--panel2); }
+  .room-card { display:flex; flex-direction:column; gap:6px; }
+  .rc-top, .card-top { display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; }
+  .rcode { font:bold 22px ui-monospace,Menlo,Consolas,monospace; letter-spacing:3px; color:var(--gold); }
+  .empty { color:var(--mute); padding:12px 0; grid-column:1/-1; }
+  .code { font:bold 32px ui-monospace,Menlo,Consolas,monospace; letter-spacing:5px; color:var(--gold); line-height:1.1; }
+  .card.sel { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
+  .card.dead { opacity:.35; }
+  .card.pick { cursor:pointer; }
+  .bar { height:8px; background:#0c0a08; border-radius:4px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; background:var(--green); transition:width .4s; }
+  .monster .bar > i { background:var(--red); }
+  #actions button { flex:1 1 auto; }
+  #timer { font-variant-numeric:tabular-nums; color:var(--mute); }
+  #timer.low { color:var(--red); }
+  #story, #log { max-height:300px; overflow:auto; }
+  .nar { border-left:3px solid var(--gold); padding:6px 12px; margin:10px 0; font-style:italic; }
+  .nar .mute { font-style:normal; }
+  .src { font-size:11px; border:1px solid var(--line); border-radius:99px; padding:0 6px; margin-left:4px; }
+  .ev { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; padding:1px 0; }
+  .ev.head { color:var(--gold); margin-top:10px; }
+  .banner { background:#3a1d17; border:1px solid var(--red); border-radius:10px; padding:10px 14px; margin-bottom:12px; }
+  details summary { cursor:pointer; color:var(--gold); }
+  .radio { display:flex; gap:8px; align-items:flex-start; margin:8px 0; color:var(--ink); font-size:15px; }
+  .radio input { margin-top:5px; }
+  footer { color:var(--mute); font-size:13px; margin-top:20px; }
+  @media (max-width:640px) {
+    .two { grid-template-columns:1fr; }
+    .classes { grid-template-columns:1fr 1fr; }
+    .grid { grid-template-columns:1fr 1fr; }
+    .code { font-size:28px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">⚔ Dungeon Lobby</div>
+    <div class="net"><span class="dot" id="netDot"></span><span id="netStatus">Not connected</span></div>
+  </header>
+
+  <!-- 1. ENTRY -->
+  <section id="entry" class="panel">
+    <h2>Enter the dungeon</h2>
+    <p class="mute">A cooperative fantasy battle game for 1–6 players with an AI Dungeon Master. No account needed. Use the entry code <b style="color:var(--gold)">5467</b> to come in.</p>
+    <p class="mute" id="inviteNote" style="color:var(--gold)"></p>
+    <form id="entryForm" autocomplete="off">
+      <div class="two">
+        <div><label for="name">Your hero's name</label><input id="name" maxlength="20" placeholder="Aldric" required></div>
+        <div><label for="entryCode">Entry code</label><input id="entryCode" maxlength="4" inputmode="numeric" pattern="\d{4}" placeholder="5467" required></div>
+      </div>
+      <label style="margin-top:14px">Class</label>
+      <div class="classes" id="classes"></div>
+      <div class="row" style="margin-top:16px"><button class="primary" id="btnEnter" type="submit">Enter</button></div>
+      <div class="err" id="entryErr"></div>
+    </form>
+  </section>
+
+  <!-- 2. HUB -->
+  <section id="hub" class="hidden">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h2>Create a room</h2><span class="mute" id="hello"></span>
+      </div>
+      <p class="mute">You get a random 4-digit room code to share. Your browser runs the room, so keep this tab open while you play.</p>
+      <div class="row">
+        <div class="seg" id="vis"><button type="button" data-v="public" class="sel">Public</button><button type="button" data-v="private">Private</button></div>
+        <button class="primary" id="btnCreate">Create room</button>
+      </div>
+      <p class="mute" id="visHelp" style="margin-bottom:0">Listed in the server browser. Anyone can join.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Join with a room code</h2>
+      <form id="joinForm" class="row" style="margin-top:10px" autocomplete="off">
+        <input id="joinCode" maxlength="4" inputmode="numeric" placeholder="e.g. 3812" style="max-width:160px">
+        <button id="joinBtn" type="submit">Join</button>
+      </form>
+    </div>
+
+    <div class="err" id="hubErr"></div>
+
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h2>Server browser <span class="mute" id="roomCount"></span></h2>
+        <input id="search" placeholder="Search code or host" style="max-width:220px">
+      </div>
+      <div class="grid" id="roomList" style="margin-top:12px"></div>
+    </div>
+
+    <details class="panel">
+      <summary>AI Dungeon Master settings</summary>
+      <p class="mute">Used when you host a room. Now: <b id="narrNow"></b>. Every AI line is checked so it can't change dice results or speak for players; if the AI is slow or breaks a rule, the built-in narrator fills in.</p>
+      <label class="radio"><input type="radio" name="narr" value="free"> <span><b>Free AI</b>, no key needed (best effort; may be slow or rate-limited)</span></label>
+      <label class="radio"><input type="radio" name="narr" value="claude"> <span><b>Claude</b> with your own Anthropic API key (fastest and best; the key stays in your browser and is sent only to Anthropic)</span></label>
+      <div id="keyRow" class="hidden" style="margin:6px 0 10px 26px"><input id="apiKey" type="password" placeholder="sk-ant-…"></div>
+      <label class="radio"><input type="radio" name="narr" value="off"> <span><b>Built-in narrator</b> only (instant, no AI)</span></label>
+    </details>
+  </section>
+
+  <!-- 3. ROOM -->
+  <section id="room" class="hidden">
+    <div class="banner hidden" id="closedBanner"></div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="mute">Room code <span class="tag" id="visTag"></span></div>
+          <div class="code" id="roomCode"></div>
+          <div class="mute" id="shareHelp"></div>
+        </div>
+        <div class="row"><button id="btnCopy">Copy invite link</button><button id="btnLeave">Leave</button></div>
+      </div>
+      <div class="mute" style="margin-top:8px"><span id="sceneLine"></span> · <span id="narratorTag"></span></div>
+      <div class="mute hidden" id="hostNote" style="margin-top:6px;color:var(--gold)">You are hosting. Keep this tab open, or the room closes.</div>
+    </div>
+
+    <div id="lobby" class="panel hidden">
+      <h2>Party</h2>
+      <div class="grid" id="lobbyMembers" style="margin:12px 0"></div>
+      <div class="row"><button class="primary hidden" id="btnStart">Start battle</button><span class="mute" id="lobbyNote"></span></div>
+    </div>
+
+    <div id="combat" class="hidden">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between"><h2 id="roundTitle"></h2><div id="timer"></div></div>
+        <div class="mute" style="margin:10px 0 6px">Enemies</div>
+        <div class="grid" id="enemies"></div>
+        <div class="mute" style="margin:14px 0 6px">Party</div>
+        <div class="grid" id="party"></div>
+      </div>
+      <div class="panel">
+        <div class="row" id="actions"></div>
+        <input id="flavor" maxlength="140" placeholder="Optional: describe how your hero does it" style="margin-top:10px">
+        <div class="mute" id="actionNote" style="margin-top:8px"></div>
+      </div>
+      <div class="panel hidden" id="endPanel"></div>
+    </div>
+
+    <div class="panel"><h2>Dungeon Master</h2><div id="story"></div></div>
+    <div class="panel"><h2>Combat log</h2><div id="log"></div></div>
+  </section>
+
+  <footer>Dungeon Lobby · rooms run in the host's browser and talk through a public relay, so don't share anything private in names or flavor text.</footer>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
