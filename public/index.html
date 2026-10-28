@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dungeon Lobby</title>
+<style>
+  :root { --bg:#14110f; --panel:#1f1a16; --line:#3a3026; --ink:#eadfcb; --mute:#9b8d78; --gold:#d9a441; --red:#c4503c; --green:#6aa56a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 Georgia, "Times New Roman", serif; }
+  h1,h2,h3 { font-weight:normal; margin:0; }
+  .wrap { max-width:960px; margin:0 auto; padding:16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; }
+  input, select, button { font:inherit; color:inherit; }
+  input { background:#120f0d; border:1px solid var(--line); border-radius:8px; padding:10px 12px; width:100%; }
+  button { background:#2a2219; border:1px solid var(--line); border-radius:8px; padding:10px 14px; cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--gold); }
+  button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:var(--gold); color:#1a1408; border-color:var(--gold); font-weight:bold; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); }
+  .classes { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .classes button.sel { border-color:var(--gold); background:#3a2d14; }
+  .card { border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:#181310; }
+  .card.sel { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
+  .card.dead { opacity:.35; }
+  .card.pick { cursor:pointer; }
+  .bar { height:8px; background:#0e0b09; border-radius:4px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; background:var(--green); }
+  .monster .bar > i { background:var(--red); }
+  .mute { color:var(--mute); font-size:14px; }
+  .tag { font-size:12px; padding:1px 6px; border:1px solid var(--line); border-radius:99px; color:var(--mute); }
+  .tag.ok { color:var(--green); border-color:var(--green); }
+  .tag.priv { color:var(--gold); border-color:var(--gold); }
+  #log, #story { max-height:240px; overflow:auto; }
+  .ev { font-size:14px; padding:2px 0; font-family:ui-monospace,Menlo,monospace; }
+  .ev.round { color:var(--gold); margin-top:8px; }
+  .nar { font-style:italic; border-left:3px solid var(--gold); padding:4px 10px; margin:8px 0; }
+  .code { font:bold 28px ui-monospace,Menlo,monospace; letter-spacing:4px; color:var(--gold); }
+  .rcode { font:bold 22px ui-monospace,Menlo,monospace; letter-spacing:3px; color:var(--gold); }
+  .err { color:var(--red); min-height:1.2em; }
+  .hidden { display:none; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; }
+  .seg button.sel { background:#3a2d14; color:var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 style="font-size:28px;color:var(--gold);margin:8px 0 14px">Dungeon Lobby</h1>
+
+  <!-- 1. ENTRY (the site code) -->
+  <div id="entry" class="panel">
+    <div class="mute" style="margin-bottom:10px">Enter the entry code <b style="color:var(--gold)">5467</b> to come in. Inside you can browse public rooms, join with a room code, or create your own.</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div><label class="mute">Your name</label><input id="name" maxlength="20" placeholder="Aldric" autocomplete="off"></div>
+      <div><label class="mute">Entry code</label><input id="entryCode" maxlength="4" inputmode="numeric" placeholder="5467"></div>
+    </div>
+    <div class="mute" style="margin:10px 0 4px">Class</div>
+    <div class="classes" id="classes"></div>
+    <div class="row" style="margin-top:12px"><button class="primary" id="btnEnter">Enter</button></div>
+    <div class="err" id="entryErr"></div>
+  </div>
+
+  <!-- 2. HUB (server browser) -->
+  <div id="hub" class="hidden">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h3>Create your own room</h3>
+        <span class="mute" id="hello"></span>
+      </div>
+      <div class="mute" style="margin:6px 0 10px">You get a random 4-digit code to share. Public rooms appear in the server browser below; private rooms are hidden and only joinable with their code.</div>
+      <div class="row">
+        <div class="seg" id="vis"><button data-v="public" class="sel">Public</button><button data-v="private">Private</button></div>
+        <button class="primary" id="btnCreate">Create room</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Join with a room code</h3>
+      <div class="row" style="margin-top:8px"><input id="joinCode" maxlength="4" inputmode="numeric" placeholder="1234" style="max-width:140px"><button id="btnJoin">Join</button></div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between"><h3>Server browser (public rooms)</h3><button id="btnRefresh">Refresh</button></div>
+      <div class="grid" id="roomList" style="margin-top:10px"></div>
+    </div>
+    <div class="err" id="hubErr"></div>
+  </div>
+
+  <!-- 3. ROOM -->
+  <div id="room" class="hidden">
+    <div class="panel row" style="justify-content:space-between">
+      <div><span class="mute">Room code <span class="tag" id="visTag"></span></span><div class="code" id="roomCode"></div></div>
+      <div class="mute" id="scene" style="max-width:360px"></div>
+      <div class="row"><button id="btnCopy">Copy invite link</button><button id="btnLeave">Leave</button></div>
+    </div>
+
+    <div id="lobby" class="panel hidden">
+      <h3>Party</h3>
+      <div class="grid" id="lobbyMembers" style="margin:10px 0"></div>
+      <button class="primary" id="btnStart">Start battle</button>
+      <span class="mute" id="lobbyNote"></span>
+    </div>
+
+    <div id="combat" class="hidden">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between">
+          <h3 id="roundTitle"></h3><div id="timer" class="mute"></div>
+        </div>
+        <div class="mute" style="margin:8px 0 4px">Enemies</div>
+        <div class="grid" id="enemies"></div>
+        <div class="mute" style="margin:12px 0 4px">Party</div>
+        <div class="grid" id="party"></div>
+      </div>
+      <div class="panel" id="actionPanel">
+        <div class="row" id="actions"></div>
+        <input id="flavor" maxlength="200" placeholder="Optional flavor: how does your hero do it?" style="margin-top:10px">
+        <div class="mute" id="actionNote" style="margin-top:6px"></div>
+      </div>
+      <div class="panel hidden" id="endPanel"></div>
+    </div>
+
+    <div class="panel"><h3>Dungeon Master</h3><div id="story"></div></div>
+    <div class="panel"><h3>Combat log</h3><div id="log"></div></div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CLASSES = { fighter:'Fighter', rogue:'Rogue', wizard:'Wizard', cleric:'Cleric' };
+const BLURB = { fighter:'Tough, hits hard', rogue:'Accurate, quick', wizard:'Firebolt, fragile', cleric:'Heals allies' };
+const socket = io();
+let profile = null;            // { name, cls, entryCode } once past the front door
+let me = null;                 // { code, playerId, visibility } while seated in a room
+let state = null, cls = localStorage.getItem('cls') || 'fighter', vis = 'public';
+let target = null, receivedAt = 0;
+const urlCode = location.pathname.match(/^\/(\d{4})$/)?.[1] || new URLSearchParams(location.search).get('code');
+let pendingRoom = urlCode || null;
+
+// ---------- screens ----------
+function show(which){ for (const s of ['entry','hub','room']) $(s).classList.toggle('hidden', s !== which); }
+
+// ---------- class + visibility pickers ----------
+$('classes').innerHTML = Object.keys(CLASSES).map(k => `<button data-c="${k}" title="${BLURB[k]}">${CLASSES[k]}</button>`).join('');
+const paintClass = () => document.querySelectorAll('#classes button').forEach(b => b.classList.toggle('sel', b.dataset.c === cls));
+$('classes').onclick = (e) => { const b = e.target.closest('button'); if(b){ cls = b.dataset.c; paintClass(); } };
+paintClass();
+$('vis').onclick = (e) => { const b = e.target.closest('button'); if(!b) return; vis = b.dataset.v; document.querySelectorAll('#vis button').forEach(x => x.classList.toggle('sel', x === b)); };
+$('name').value = localStorage.getItem('name') || '';
+
+// ---------- entry ----------
+function doEnter(p, done){
+  socket.emit('enter', p, (r) => {
+    if(!r.ok){ $('entryErr').textContent = r.error || 'Could not enter.'; show('entry'); return; }
+    profile = p;
+    localStorage.setItem('name', p.name); localStorage.setItem('cls', p.cls); sessionStorage.setItem('entry', p.entryCode);
+    $('hello').textContent = `Playing as ${p.name} (${CLASSES[p.cls]})`;
+    renderRooms(r.rooms);
+    done ? done() : show('hub');
+  });
+}
+$('btnEnter').onclick = () => {
+  const name = $('name').value.trim();
+  if(!name) return $('entryErr').textContent = 'Enter a name.';
+  $('entryErr').textContent = '';
+  doEnter({ entryCode: $('entryCode').value.trim(), name, cls }, () => {
+    if(pendingRoom){ const c = pendingRoom; pendingRoom = null; joinRoom(c); } else show('hub');
+  });
+};
+
+// ---------- hub ----------
+function renderRooms(list){
+  if(!list || !list.length){ $('roomList').innerHTML = '<div class="mute">No public rooms yet. Create one!</div>'; return; }
+  $('roomList').innerHTML = list.map(r => `<div class="card">
+    <div class="rcode">${esc(r.code)}</div>
+    <div class="mute">Host: ${esc(r.host)}</div>
+    <div class="mute">${r.players}/${r.max} players · ${r.phase === 'LOBBY' ? 'waiting' : 'in battle'}</div>
+    <button data-join="${esc(r.code)}" ${r.joinable ? '' : 'disabled'} style="margin-top:6px">${r.joinable ? 'Join' : 'Unavailable'}</button></div>`).join('');
+}
+socket.on('rooms', renderRooms);
+$('roomList').onclick = (e) => { const b = e.target.closest('button[data-join]'); if(b && !b.disabled) joinRoom(b.dataset.join); };
+$('btnRefresh').onclick = () => socket.emit('browse', {}, (r) => r.ok && renderRooms(r.rooms));
+$('btnJoin').onclick = () => joinRoom($('joinCode').value.trim());
+$('btnCreate').onclick = () => socket.emit('create', { visibility: vis }, seated);
+
+function joinRoom(code){
+  $('hubErr').textContent = '';
+  socket.emit('join', { code, playerId: localStorage.getItem('pid:' + code) || undefined }, (r) => {
+    if(!r.ok){ $('hubErr').textContent = r.error; show('hub'); return; }
+    seated(r);
+  });
+}
+function seated(r){
+  if(!r.ok){ $('hubErr').textContent = r.error || 'Could not create room.'; return; }
+  me = r;
+  localStorage.setItem('pid:' + r.code, r.playerId); sessionStorage.setItem('room', r.code);
+  history.replaceState(null, '', '/' + r.code);
+  $('roomCode').textContent = r.code;
+  $('visTag').textContent = r.visibility === 'private' ? 'private · code only' : 'public';
+  $('visTag').className = 'tag' + (r.visibility === 'private' ? ' priv' : '');
+  $('log').innerHTML = ''; $('story').innerHTML = ''; state = null;
+  show('room');
+}
+$('btnLeave').onclick = () => socket.emit('leave', {}, (r) => {
+  if(me){ localStorage.removeItem('pid:' + me.code); }
+  me = null; state = null; sessionStorage.removeItem('room'); history.replaceState(null, '', '/');
+  renderRooms(r.rooms); show('hub');
+});
+$('btnCopy').onclick = () => { navigator.clipboard?.writeText(location.origin + '/' + me.code); $('btnCopy').textContent = 'Copied!'; setTimeout(()=>$('btnCopy').textContent='Copy invite link',1500); };
+$('btnStart').onclick = () => socket.emit('start', {}, (r) => { if(!r.ok) $('lobbyNote').textContent = r.error; });
+
+// ---------- reconnect after refresh / network blip ----------
+socket.on('connect', () => {
+  const p = profile || (sessionStorage.getItem('entry') && localStorage.getItem('name')
+    ? { entryCode: sessionStorage.getItem('entry'), name: localStorage.getItem('name'), cls } : null);
+  if(!p) return;
+  const room = (me && me.code) || sessionStorage.getItem('room');
+  doEnter(p, () => {
+    if(room) socket.emit('join', { code: room, playerId: localStorage.getItem('pid:' + room) || undefined }, (r) => r.ok ? seated(r) : show('hub'));
+    else show('hub');
+  });
+});
+
+// ---------- in-room events ----------
+socket.on('state', (s) => { state = s; receivedAt = Date.now(); render(); });
+socket.on('toast', (m) => { $('actionNote').textContent = m; });
+socket.on('resolution', (res) => {
+  const log = $('log');
+  const h = document.createElement('div'); h.className = 'ev round'; h.textContent = `— Round ${res.round} —`; log.prepend(h);
+  [...res.events].reverse().forEach(e => { const d = document.createElement('div'); d.className = 'ev'; d.textContent = e.text; h.after(d); });
+  if(res.outcome !== 'ongoing'){ const d = document.createElement('div'); d.className='ev round'; d.textContent = res.outcome === 'victory' ? '★ Victory!' : '☠ Defeat'; log.prepend(d); }
+});
+socket.on('narration', (n) => {
+  const d = document.createElement('div'); d.className = 'nar';
+  d.innerHTML = `<span class="mute">Round ${n.round}</span><br>` + esc(n.text);
+  $('story').prepend(d);
+});
+
+function hpCard(e, extra=''){
+  const pct = Math.max(0, Math.round(100 * e.hp / e.maxHp));
+  const you = me && e.id === me.playerId ? ' <span class="tag">you</span>' : '';
+  return `<div class="card ${e.kind==='monster'?'monster':''} ${e.hp<=0?'dead':''} ${extra}" data-id="${e.id}">
+    <div class="row" style="justify-content:space-between"><b>${esc(e.name)}</b>${you}</div>
+    <div class="mute">${e.cls ? CLASSES[e.cls] + ' · ' : ''}AC ${e.ac} · init ${e.initiative}</div>
+    <div class="bar"><i style="width:${pct}%"></i></div><div class="mute">${e.hp}/${e.maxHp} HP</div></div>`;
+}
+
+function render(){
+  if(!state || !me || state.code !== me.code) return;
+  $('scene').textContent = state.phase === 'LOBBY' ? '' : 'Scene: ' + state.scene;
+  const lobby = state.phase === 'LOBBY';
+  $('lobby').classList.toggle('hidden', !lobby);
+  $('combat').classList.toggle('hidden', lobby);
+  const isHost = state.hostId === me.playerId;
+  if(lobby){
+    $('lobbyMembers').innerHTML = state.members.map(m => `<div class="card"><b>${esc(m.name)}</b> ${m.id===state.hostId?'<span class="tag">host</span>':''}<div class="mute">${CLASSES[m.cls]} · ${m.connected?'online':'offline'}</div></div>`).join('');
+    $('btnStart').disabled = !isHost;
+    $('lobbyNote').textContent = isHost ? ' Share the code, then start when everyone has joined.' : ' Waiting for the host to start…';
+    return;
+  }
+  const ents = state.entities, mine = ents.find(e => e.id === me.playerId);
+  const enemies = ents.filter(e => e.kind==='monster'), party = ents.filter(e => e.kind==='player');
+  const alive = enemies.filter(e => e.hp>0);
+  if(!target || !ents.find(e => e.id===target && e.hp>0)) target = (alive[0]||{}).id;
+  const isHeal = window._mode === 'heal';
+  $('enemies').innerHTML = enemies.map(e => hpCard(e, 'pick ' + (e.id===target && !isHeal ? 'sel' : ''))).join('');
+  $('party').innerHTML = party.map(e => { const m = state.members.find(x=>x.id===e.id); const lock = state.phase==='COMMIT' && e.hp>0 ? (m&&m.locked?'<span class="tag ok">locked in</span>':(e.connected?'<span class="tag">thinking…</span>':'<span class="tag">away</span>')) : ''; return hpCard(e, 'pick ' + (e.id===target && isHeal ? 'sel' : '')).replace('</b>', '</b> ' + lock); }).join('');
+  $('roundTitle').textContent = state.phase === 'ENDED' ? (state.outcome==='victory' ? 'Victory!' : 'Defeat') : `Round ${state.round}`;
+
+  const locked = state.members.find(m => m.id===me.playerId)?.locked;
+  const canAct = state.phase==='COMMIT' && mine && mine.hp>0 && !locked;
+  const btn = (t, label, on) => `<button data-t="${t}" ${canAct?'':'disabled'} class="${on?'primary':''}">${label}</button>`;
+  let html = btn('attack','Attack', window._mode!=='heal');
+  if(mine && mine.cls==='wizard') html += btn('spell','Firebolt');
+  if(mine && mine.cls==='cleric') html += btn('heal','Heal ally', window._mode==='heal');
+  html += btn('defend','Defend (+4 AC)');
+  $('actions').innerHTML = html;
+  $('actionNote').textContent = state.phase==='ENDED' ? 'Returning to the room lobby shortly…' : !mine || mine.hp<=0 ? 'You are down. Your allies fight on.' : locked ? 'Locked in. Waiting for the others…' : 'Click a card to choose a target, then pick an action.';
+  const end = $('endPanel'); end.classList.toggle('hidden', state.phase!=='ENDED');
+  end.textContent = state.outcome==='victory' ? 'The dungeon falls silent. You won! Back to the room lobby in a few seconds.' : state.outcome==='defeat' ? 'The party has fallen. Back to the room lobby in a few seconds.' : '';
+}
+
+document.addEventListener('click', (e) => {
+  if(!state || !me || $('room').classList.contains('hidden')) return;
+  const card = e.target.closest('.card.pick');
+  if(card){ target = card.dataset.id; window._mode = state.entities.find(x=>x.id===target)?.kind==='player' ? 'heal' : 'attack'; render(); return; }
+  const b = e.target.closest('#actions button'); if(!b || b.disabled) return;
+  const t = b.dataset.t;
+  if(t==='heal' && window._mode!=='heal'){ window._mode='heal'; target = me.playerId; render(); return; }
+  if(t==='attack' && window._mode==='heal'){ window._mode='attack'; target = null; render(); return; }
+  const tid = t==='defend' ? undefined : (t==='heal' ? (state.entities.find(x=>x.id===target&&x.kind==='player')?.id || me.playerId) : target);
+  socket.emit('action', { roomCode: state.code, round: state.round, type: t, targetId: tid, flavorText: $('flavor').value.trim() || undefined }, (r) => {
+    if(!r.ok) $('actionNote').textContent = r.error; else { $('flavor').value=''; window._mode='attack'; }
+  });
+});
+
+setInterval(() => {
+  if(!state || state.phase!=='COMMIT') { $('timer').textContent=''; return; }
+  const left = Math.max(0, Math.ceil((state.msLeft - (Date.now()-receivedAt))/1000));
+  $('timer').textContent = `Time left: ${left}s`;
+}, 250);
+</script>
+</body>
+</html>

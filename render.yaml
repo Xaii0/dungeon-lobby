@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: dungeon-lobby
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # set in the Render dashboard; omit for template narration
+      - key: NARRATOR_MODEL
+        value: claude-haiku-5-5
+      - key: COMMIT_SECONDS
+        value: "45"
